@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#161613">
+  <meta name="description" content="Yuanyi Ding's personal corner of the internet. Step inside a quiet, interactive studio.">
+  <title>Yuanyi Ding — A little corner of the internet</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#reading">Skip to readable content</a>
+  <div id="scene" aria-hidden="true"></div>
+  <div class="vignette" aria-hidden="true"></div>
+  <header>
+    <a href="#home" class="wordmark" aria-label="Yuanyi Ding, home">YUANYI DING<span class="brand-dot">✳</span></a>
+    <nav aria-label="Main navigation">
+      <button data-channel="about">About</button><button data-channel="work">Work</button><button data-channel="research">Research</button><button data-channel="connect">Connect <span>↗</span></button>
+    </nav>
+  </header>
+  <main id="room-ui">
+    <div class="scene-note"><span class="tiny-dot"></span> A LITTLE CORNER OF THE INTERNET</div>
+    <div id="loading" role="status"><span class="loading-icon">▥</span><p>Setting the mood<span class="loading-dots">...</span></p><small>Welcome to the studio.</small></div>
+    <div id="hover-label" aria-hidden="true"></div>
+    <div class="room-caption"><p>Stay curious.<br><em>Make things.</em></p><span>Pull up a chair. Pick a tape.</span></div>
+    <div class="tape-menu" aria-label="Explore the shelves"><span class="shelf-label">ON THE SHELF</span><button data-channel="about"><span>01</span> About me <b>↗</b></button><button data-channel="work"><span>02</span> Selected work <b>↗</b></button><button data-channel="research"><span>03</span> Research <b>↗</b></button><button data-channel="connect"><span>04</span> Say hello <b>↗</b></button></div>
+  </main>
+  <section id="reading" hidden tabindex="-1" aria-label="Readable version"><div class="reading-intro"><span class="eyebrow">THE PERSONAL ARCHIVE</span><h1>Hi, I'm Yuanyi.</h1><p>Currently at Adobe.<br>Welcome to my little corner of the internet.</p></div><div id="reading-content"></div><p class="reading-foot">A space for things made, things learned, and things still to come.</p></section>
+  <footer>
+    <div class="status"><span class="tiny-dot"></span><span id="status-text">STUDIO / AFTER HOURS</span><time id="clock"></time></div>
+    <span class="keyboard-hint">1–4 explore <i>·</i> Z zoom <i>·</i> L light</span>
+    <div class="controls"><button id="zoom" aria-pressed="false" title="Zoom into the monitor (Z)">⤢ <span>Zoom</span></button><button id="lamp" aria-pressed="true" title="Toggle desk lamp (L)">☼ <span>Light</span></button><button id="sound" aria-pressed="false">♫ <span>Sound off</span></button><button id="mode" aria-pressed="false">☷ <span>Reading mode</span></button><button id="credits" aria-label="About this website">ⓘ</button></div>
+  </footer>
+  <dialog id="detail" aria-labelledby="detail-title"><div class="dialog-top"><span id="detail-index">PLAY / 01</span><button id="close-detail" aria-label="Close panel">✕</button></div><div id="detail-body"></div><div class="dialog-bottom"><span>THE PERSONAL ARCHIVE</span><span>ESC TO RETURN</span></div></dialog>
+  <div id="announcement" class="sr-only" aria-live="polite"></div>
+  <script type="module" src="app.js"></script>
+  <noscript><style>#loading{display:none}</style><div class="noscript"><h1>Yuanyi Ding</h1><p>Currently at Adobe. The interactive studio needs JavaScript.</p><a href="https://scholar.google.com/citations?user=rZo3ntoAAAAJ&hl=en">Google Scholar</a> · <a href="https://www.linkedin.com/in/yuanyi-ding-4a981a132/">LinkedIn</a></div></noscript>
+</body>
+</html>
