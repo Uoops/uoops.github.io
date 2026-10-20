@@ -37,8 +37,8 @@ export async function createRoom(container,{onChannel,onHover,onLamp,onSound,onZ
   function contactShadow(x,z,w,d){const p=plane(w,d,new THREE.MeshBasicMaterial({map:shadowTexture,transparent:true,depthWrite:false}),x,1.197,z);p.rotation.x=-Math.PI/2;}
 
   // The window and the city are separate layers, so the room retains real depth.
-  box(18,11,.25,mat('#706d57'),0,4,-3.1);
-  box(.3,10,12,mat('#696754'),-7,4,1);
+  box(32,18,.25,mat('#706d57'),0,8,-3.1);
+  box(.3,18,20,mat('#696754'),-16,8,6.8);
   const cityTexture=texture(2048,1024,(ctx,w,h)=>{
     const sky=ctx.createLinearGradient(0,0,0,h);sky.addColorStop(0,'#15232a');sky.addColorStop(.55,'#374947');sky.addColorStop(1,'#72725d');ctx.fillStyle=sky;ctx.fillRect(0,0,w,h);
     for(let layer=0;layer<3;layer++){for(let x=0;x<w;){const bw=30+random()*100,bh=80+random()*(210+layer*110),y=h-bh-70+layer*25;ctx.fillStyle=['#35413f','#293332','#1c292b'][layer];ctx.fillRect(x,y,bw,bh+100);if(random()>.5){ctx.fillRect(x+bw*.4,y-20,3,25);}for(let wy=y+12;wy<h-90;wy+=18)for(let wx=x+8;wx<x+bw-8;wx+=12){if(random()>.49){ctx.fillStyle=random()>.2?'#a39560':'#768d82';ctx.globalAlpha=.15+random()*.6;ctx.fillRect(wx,wy,4+random()*3,7);ctx.globalAlpha=1;}}x+=bw+random()*13;}}
@@ -66,11 +66,11 @@ export async function createRoom(container,{onChannel,onHover,onLamp,onSound,onZ
 
 
   // Complete the room volume for constrained camera orbits.
-  box(.3,8,14,mat('#696754'),7,3.6,3.5);
-  box(14,.18,14,wood,0,-.3,3.5);
-  box(14,.18,14,mat('#797765'),0,7.5,3.5);
-  box(13.8,.22,.12,walnut,0,-.12,-2.91);
-  for(const x of[-6.8,6.8])box(.12,.22,13.8,walnut,x,-.12,3.5);
+  box(.3,18,20,mat('#696754'),16,8,6.8);
+  box(32,.18,20,wood,0,-.3,6.8);
+  box(32,.18,20,mat('#797765'),0,17,6.8);
+  box(31.8,.22,.12,walnut,0,-.12,-2.91);
+  for(const x of[-15.8,15.8])box(.12,.22,20,walnut,x,-.12,6.8);
   const radiator=mat('#989783');
   for(let i=0;i<23;i++)rounded(.12,1.05,.22,radiator,-2.2+i*.2,.4,-2.72,root,.035,false);
   rod([-2.35,.86,-2.72],[2.4,.86,-2.72],.055,radiator);
@@ -269,15 +269,16 @@ export async function createRoom(container,{onChannel,onHover,onLamp,onSound,onZ
   function setChannel(id){activeChannel=channels.find(c=>c.id===id)||null;paintScreen(0);}
   function setZoom(value){zoomed=value;hover=null;onHover(null);}
   function setLamp(value){lampOn=value;lampLight.intensity=value?35:0;lampSpot.intensity=value?60:0;bounce.intensity=value?8:0;bulb.visible=value;innerShade.material.emissiveIntensity=value?.5:0;}
-  const orbit={yaw:0,pitch:0},drag={id:null,x:0,y:0,yaw:0,pitch:0,moved:false};
+  const orbit={yaw:0,pitch:null},drag={id:null,x:0,y:0,yaw:0,pitch:0,moved:false};
   let suppressClick=false;
-  const viewLimits={yaw:.60,pitch:.12};
-  function resetView(){orbit.yaw=0;orbit.pitch=0;pointer.set(0,0);}
+  const viewLimits={yaw:88*Math.PI/180,minPitch:-10*Math.PI/180,maxPitch:60*Math.PI/180};
+  let defaultPitch=0;
+  function resetView(){orbit.yaw=0;orbit.pitch=null;pointer.set(0,0);}
   renderer.domElement.tabIndex=0;
   renderer.domElement.setAttribute('role','region');
   renderer.domElement.setAttribute('aria-label','3D studio. Drag to look around. Arrow keys change the view; R resets it.');
   const targetPos=new THREE.Vector3(),targetLook=new THREE.Vector3(),look=new THREE.Vector3(0,2.4,0);
-  function cameraTarget(){const aspect=container.clientWidth/container.clientHeight;const narrow=aspect<.9;if(zoomed){targetPos.set(-.27,3.04,4.9+(narrow?1.5:0));targetLook.set(-.27,2.92,.2);}else{targetPos.set(.18,3.7,narrow?11.7:(researchMode?10.6:8.9));targetLook.set(0,narrow?2.7:2.48,-.2);}const offset=targetPos.clone().sub(targetLook);const radius=offset.length(),basePitch=Math.asin(offset.y/radius);const yaw=orbit.yaw*(zoomed?.8:1),pitch=clamp(basePitch+orbit.pitch,.03,.42);targetPos.set(targetLook.x+radius*Math.sin(yaw)*Math.cos(pitch),targetLook.y+radius*Math.sin(pitch),targetLook.z+radius*Math.cos(yaw)*Math.cos(pitch));}
+  function cameraTarget(){const aspect=container.clientWidth/container.clientHeight;const narrow=aspect<.9;if(zoomed){targetPos.set(-.27,3.04,4.9+(narrow?1.5:0));targetLook.set(-.27,2.92,.2);}else{targetPos.set(.18,3.7,narrow?11.7:(researchMode?10.6:8.9));targetLook.set(0,narrow?2.7:2.48,-.2);}const offset=targetPos.clone().sub(targetLook);const radius=offset.length(),basePitch=Math.asin(offset.y/radius);defaultPitch=basePitch;const yaw=orbit.yaw,pitch=clamp(orbit.pitch??basePitch,viewLimits.minPitch,viewLimits.maxPitch);targetPos.set(targetLook.x+radius*Math.sin(yaw)*Math.cos(pitch),targetLook.y+radius*Math.sin(pitch),targetLook.z+radius*Math.cos(yaw)*Math.cos(pitch));}
   cameraTarget();camera.position.copy(targetPos);look.copy(targetLook);camera.lookAt(look);paintScreen(0);
   const resize=()=>{renderer.setSize(container.clientWidth,container.clientHeight);camera.aspect=container.clientWidth/container.clientHeight;camera.updateProjectionMatrix();cameraTarget();};window.addEventListener('resize',resize);
   function pick(e){
@@ -290,14 +291,14 @@ export async function createRoom(container,{onChannel,onHover,onLamp,onSound,onZ
   }
   const pointerDown=e=>{
     if(e.button!==0||drag.id!==null)return;
-    drag.id=e.pointerId;drag.x=e.clientX;drag.y=e.clientY;drag.yaw=orbit.yaw;drag.pitch=orbit.pitch;drag.moved=false;
+    drag.id=e.pointerId;drag.x=e.clientX;drag.y=e.clientY;drag.yaw=orbit.yaw;drag.pitch=orbit.pitch??defaultPitch;drag.moved=false;
     renderer.domElement.setPointerCapture(e.pointerId);
   };
   const pointerMove=e=>{
     if(drag.id===e.pointerId){
       const dx=e.clientX-drag.x,dy=e.clientY-drag.y;
       if(Math.hypot(dx,dy)>6)drag.moved=true;
-      if(drag.moved){orbit.yaw=clamp(drag.yaw-dx/container.clientWidth*1.5,-viewLimits.yaw,viewLimits.yaw);orbit.pitch=clamp(drag.pitch+dy/container.clientHeight*.55,-viewLimits.pitch,viewLimits.pitch);hover=null;onHover(null);renderer.domElement.style.cursor='grabbing';return;}
+      if(drag.moved){orbit.yaw=clamp(drag.yaw-dx/container.clientWidth*2.8,-viewLimits.yaw,viewLimits.yaw);orbit.pitch=clamp(drag.pitch+dy/container.clientHeight*1.4,viewLimits.minPitch,viewLimits.maxPitch);hover=null;onHover(null);renderer.domElement.style.cursor='grabbing';return;}
     }
     pick(e);
   };
@@ -313,8 +314,8 @@ export async function createRoom(container,{onChannel,onHover,onLamp,onSound,onZ
     const step=.035;
     if(e.key==='ArrowLeft')orbit.yaw=clamp(orbit.yaw-step,-viewLimits.yaw,viewLimits.yaw);
     else if(e.key==='ArrowRight')orbit.yaw=clamp(orbit.yaw+step,-viewLimits.yaw,viewLimits.yaw);
-    else if(e.key==='ArrowUp')orbit.pitch=clamp(orbit.pitch+step,-viewLimits.pitch,viewLimits.pitch);
-    else if(e.key==='ArrowDown')orbit.pitch=clamp(orbit.pitch-step,-viewLimits.pitch,viewLimits.pitch);
+    else if(e.key==='ArrowUp')orbit.pitch=clamp((orbit.pitch??defaultPitch)+step,viewLimits.minPitch,viewLimits.maxPitch);
+    else if(e.key==='ArrowDown')orbit.pitch=clamp((orbit.pitch??defaultPitch)-step,viewLimits.minPitch,viewLimits.maxPitch);
     else if(e.key.toLowerCase()==='r')resetView();else return;e.preventDefault();
   };
   renderer.domElement.addEventListener('pointerdown',pointerDown);
