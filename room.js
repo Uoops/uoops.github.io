@@ -65,6 +65,16 @@ export async function createRoom(container,{onChannel,onHover,onLamp,onSound,onZ
   const snow=new THREE.Points(snowGeometry,new THREE.PointsMaterial({color:'#e4eeff',map:snowSprite,size:.045,transparent:true,opacity:.7,depthWrite:false,alphaTest:.015}));root.add(snow);
 
 
+  // Complete the room volume for constrained camera orbits.
+  box(.3,8,14,mat('#696754'),7,3.6,3.5);
+  box(14,.18,14,wood,0,-.3,3.5);
+  box(14,.18,14,mat('#797765'),0,7.5,3.5);
+  box(13.8,.22,.12,walnut,0,-.12,-2.91);
+  for(const x of[-6.8,6.8])box(.12,.22,13.8,walnut,x,-.12,3.5);
+  const radiator=mat('#989783');
+  for(let i=0;i<23;i++)rounded(.12,1.05,.22,radiator,-2.2+i*.2,.4,-2.72,root,.035,false);
+  rod([-2.35,.86,-2.72],[2.4,.86,-2.72],.055,radiator);
+  rod([-2.35,-.04,-2.72],[2.4,-.04,-2.72],.055,radiator);
   // Desk, its bevelled edge, and a soft leather writing mat.
   rounded(11.4,.2,4.55,wood,0,1.08,.25,root,.06);
   box(11.2,.13,.08,walnut,0,.94,2.46);
@@ -259,13 +269,62 @@ export async function createRoom(container,{onChannel,onHover,onLamp,onSound,onZ
   function setChannel(id){activeChannel=channels.find(c=>c.id===id)||null;paintScreen(0);}
   function setZoom(value){zoomed=value;hover=null;onHover(null);}
   function setLamp(value){lampOn=value;lampLight.intensity=value?35:0;lampSpot.intensity=value?60:0;bounce.intensity=value?8:0;bulb.visible=value;innerShade.material.emissiveIntensity=value?.5:0;}
+  const orbit={yaw:0,pitch:0},drag={id:null,x:0,y:0,yaw:0,pitch:0,moved:false};
+  let suppressClick=false;
+  const viewLimits={yaw:.24,pitch:.12};
+  function resetView(){orbit.yaw=0;orbit.pitch=0;pointer.set(0,0);}
+  renderer.domElement.tabIndex=0;
+  renderer.domElement.setAttribute('role','region');
+  renderer.domElement.setAttribute('aria-label','3D studio. Drag to look around. Arrow keys change the view; R resets it.');
   const targetPos=new THREE.Vector3(),targetLook=new THREE.Vector3(),look=new THREE.Vector3(0,2.4,0);
-  function cameraTarget(){const aspect=container.clientWidth/container.clientHeight;const narrow=aspect<.9;if(zoomed){targetPos.set(-.27,3.04,4.9+(narrow?1.5:0));targetLook.set(-.27,2.92,.2);}else{targetPos.set(.18,3.7,narrow?11.7:(researchMode?10.6:8.9));targetLook.set(0,narrow?2.7:2.48,-.2);}}
+  function cameraTarget(){const aspect=container.clientWidth/container.clientHeight;const narrow=aspect<.9;if(zoomed){targetPos.set(-.27,3.04,4.9+(narrow?1.5:0));targetLook.set(-.27,2.92,.2);}else{targetPos.set(.18,3.7,narrow?11.7:(researchMode?10.6:8.9));targetLook.set(0,narrow?2.7:2.48,-.2);}const offset=targetPos.clone().sub(targetLook);const radius=offset.length(),basePitch=Math.asin(offset.y/radius);const yaw=orbit.yaw*(zoomed?.35:1),pitch=clamp(basePitch+orbit.pitch,.03,.42);targetPos.set(targetLook.x+radius*Math.sin(yaw)*Math.cos(pitch),targetLook.y+radius*Math.sin(pitch),targetLook.z+radius*Math.cos(yaw)*Math.cos(pitch));}
   cameraTarget();camera.position.copy(targetPos);look.copy(targetLook);camera.lookAt(look);paintScreen(0);
   const resize=()=>{renderer.setSize(container.clientWidth,container.clientHeight);camera.aspect=container.clientWidth/container.clientHeight;camera.updateProjectionMatrix();cameraTarget();};window.addEventListener('resize',resize);
-  const pointerMove=e=>{const rect=renderer.domElement.getBoundingClientRect();pointer.set((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1);raycaster.setFromCamera(pointer,camera);const hits=raycaster.intersectObjects(targets.filter(o=>{let p=o;while(p){if(!p.visible)return false;p=p.parent;}return true;}),false);hover=hits[0]?.object||null;renderer.domElement.style.cursor=hover?'pointer':'default';onHover(hover?{text:hover.userData.label,x:e.clientX,y:e.clientY}:null);};
-  const leave=()=>{pointer.set(0,0);hover=null;onHover(null);};
-  const click=e=>{pointerMove(e);hover?.userData.action();};renderer.domElement.addEventListener('pointermove',pointerMove);renderer.domElement.addEventListener('pointerleave',leave);renderer.domElement.addEventListener('click',click);
+  function pick(e){
+    const rect=renderer.domElement.getBoundingClientRect();
+    pointer.set((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1);
+    raycaster.setFromCamera(pointer,camera);
+    const hits=raycaster.intersectObjects(targets.filter(o=>{let p=o;while(p){if(!p.visible)return false;p=p.parent;}return true;}),false);
+    hover=hits[0]?.object||null;renderer.domElement.style.cursor=hover?'pointer':'grab';
+    onHover(hover?{text:hover.userData.label,x:e.clientX,y:e.clientY}:null);
+  }
+  const pointerDown=e=>{
+    if(e.button!==0||drag.id!==null)return;
+    drag.id=e.pointerId;drag.x=e.clientX;drag.y=e.clientY;drag.yaw=orbit.yaw;drag.pitch=orbit.pitch;drag.moved=false;
+    renderer.domElement.setPointerCapture(e.pointerId);
+  };
+  const pointerMove=e=>{
+    if(drag.id===e.pointerId){
+      const dx=e.clientX-drag.x,dy=e.clientY-drag.y;
+      if(Math.hypot(dx,dy)>6)drag.moved=true;
+      if(drag.moved){orbit.yaw=clamp(drag.yaw-dx/container.clientWidth*.9,-viewLimits.yaw,viewLimits.yaw);orbit.pitch=clamp(drag.pitch+dy/container.clientHeight*.55,-viewLimits.pitch,viewLimits.pitch);hover=null;onHover(null);renderer.domElement.style.cursor='grabbing';return;}
+    }
+    pick(e);
+  };
+  const pointerUp=e=>{
+    if(drag.id!==e.pointerId)return;
+    suppressClick=drag.moved||e.type==='pointercancel';drag.id=null;
+    if(renderer.domElement.hasPointerCapture(e.pointerId))renderer.domElement.releasePointerCapture(e.pointerId);
+    renderer.domElement.style.cursor='grab';
+  };
+  const leave=()=>{if(drag.id!==null)return;pointer.set(0,0);hover=null;onHover(null);};
+  const click=e=>{if(suppressClick){suppressClick=false;return;}pick(e);hover?.userData.action();};
+  const viewKeys=e=>{
+    const step=.035;
+    if(e.key==='ArrowLeft')orbit.yaw=clamp(orbit.yaw-step,-viewLimits.yaw,viewLimits.yaw);
+    else if(e.key==='ArrowRight')orbit.yaw=clamp(orbit.yaw+step,-viewLimits.yaw,viewLimits.yaw);
+    else if(e.key==='ArrowUp')orbit.pitch=clamp(orbit.pitch+step,-viewLimits.pitch,viewLimits.pitch);
+    else if(e.key==='ArrowDown')orbit.pitch=clamp(orbit.pitch-step,-viewLimits.pitch,viewLimits.pitch);
+    else if(e.key.toLowerCase()==='r')resetView();else return;e.preventDefault();
+  };
+  renderer.domElement.addEventListener('pointerdown',pointerDown);
+  renderer.domElement.addEventListener('pointermove',pointerMove);
+  renderer.domElement.addEventListener('pointerup',pointerUp);
+  renderer.domElement.addEventListener('pointercancel',pointerUp);
+  renderer.domElement.addEventListener('lostpointercapture',()=>{drag.id=null;});
+  renderer.domElement.addEventListener('pointerleave',leave);
+  renderer.domElement.addEventListener('keydown',viewKeys);
+  renderer.domElement.addEventListener('click',click);
   const clock=new THREE.Clock();let screenTick=0;
   function animate(){if(disposed)return;frame=requestAnimationFrame(animate);const dt=Math.min(clock.getDelta(),.05),time=clock.elapsedTime;if(document.hidden||document.body.classList.contains('reading'))return;
     updateSwap(dt);cameraTarget();if(!reducedMotion&&!zoomed){targetPos.x+=pointer.x*.13;targetPos.y+=pointer.y*.055;}camera.position.lerp(targetPos,reducedMotion?1:1-Math.exp(-dt*3.8));look.lerp(targetLook,reducedMotion?1:1-Math.exp(-dt*4.5));camera.lookAt(look);
@@ -273,5 +332,5 @@ export async function createRoom(container,{onChannel,onHover,onLamp,onSound,onZ
     for(let i=0;i<snowCount;i++){const j=i*3;snowPositions[j+1]-=dt*snowVel[i];snowPositions[j]+=dt*(.035+Math.sin(time*.45+snowPhase[i])*.045);if(snowPositions[j+1]<1.6)snowPositions[j+1]=6.5;if(snowPositions[j]>5.3)snowPositions[j]=-5.3;if(snowPositions[j]<-5.3)snowPositions[j]=5.3;}snowGeometry.attributes.position.needsUpdate=true;
     screenTick+=dt;if(screenTick>.12){paintScreen(time);screenTick=0;}renderer.render(scene,camera);
   }animate();
-  return{setChannel,setZoom,setLamp,setResearch,playPaper,dispose(){disposed=true;cancelAnimationFrame(frame);window.removeEventListener('resize',resize);renderer.dispose();renderer.domElement.remove();}};
+  return{setChannel,setZoom,setLamp,setResearch,playPaper,resetView,dispose(){disposed=true;cancelAnimationFrame(frame);window.removeEventListener('resize',resize);renderer.dispose();renderer.domElement.remove();}};
 }
