@@ -119,18 +119,68 @@ export function createRoom(container,{onChannel,onHover,onLamp,onSound,onZoom,on
     const label=textPlane(p.number+' / '+p.label.toUpperCase(),1.65,.12,0,0,.54,{background:p.color,color:'#252b24',size:24,parent:g});hotspot(label,'Play '+p.label,()=>onPaper(p.id));
     box(1.25,.012,.62,mat(p.color),0,.086,0,g);for(const x of[-.35,.35]){cyl(.2,.2,.018,charcoal,x,.1,0,g);cyl(.066,.066,.02,cream,x,.115,0,g);}researchTapes.push({group:g,base:g.position.clone(),paper:p});
   });
-  const slot=new THREE.Vector3(-.93,1.43,.40),front=new THREE.Vector3(-.93,1.43,1.75);
-  function resetTape(t){t.group.position.copy(t.base);t.group.rotation.set(0,-.12,0);t.group.visible=researchMode;}
-  function cancelSwap(){if(swap){swap.resolve(false);swap=null;}researchTapes.forEach(resetTape);loadedPaper=null;}
+
+  const slot=new THREE.Vector3(-.93,1.43,.40),front=new THREE.Vector3(-.93,1.43,1.66);
+  const homeRotation=new THREE.Quaternion().setFromEuler(new THREE.Euler(0,-.12,0));
+  const alignedRotation=new THREE.Quaternion();
+  const flightRotation=new THREE.Quaternion().setFromEuler(new THREE.Euler(-.14,.32,-.09));
+  const smooth=x=>{x=clamp(x,0,1);return x*x*x*(x*(x*6-15)+10);};
+  let queuedSwap=null,tapeMotion=!reducedMotion;
+  function resetTape(t){t.group.position.copy(t.base);t.group.quaternion.copy(homeRotation);t.group.visible=researchMode;}
+  function cancelSwap(){
+    if(swap)swap.resolve(false);if(queuedSwap)queuedSwap.resolve(false);
+    swap=null;queuedSwap=null;researchTapes.forEach(resetTape);loadedPaper=null;
+  }
   function setResearch(value){researchMode=value;if(!value)cancelSwap();tapes.forEach(t=>t.group.visible=!value);researchTapes.forEach(t=>t.group.visible=value&&t!==loadedPaper);}
-  function playPaper(id){const next=researchTapes.find(t=>t.paper.id===id);if(!next)return Promise.resolve(false);if(swap)cancelSwap();if(loadedPaper===next)return Promise.resolve(true);if(reducedMotion){if(loadedPaper)resetTape(loadedPaper);loadedPaper=next;next.group.visible=false;activeChannel=next.paper;paintScreen(0);return Promise.resolve(true);}return new Promise(resolve=>{swap={next,old:loadedPaper,t:0,resolve};if(loadedPaper){loadedPaper.group.visible=true;loadedPaper.group.position.copy(slot);loadedPaper.group.rotation.y=0;}activeChannel=null;});}
-  function updateSwap(dt){if(!swap)return;const s=swap;s.t+=dt;const t=s.t,ease=x=>{x=clamp(x,0,1);return x*x*(3-2*x);};
-    if(s.old){if(t<.5)s.old.group.position.lerpVectors(slot,front,ease(t/.5));else if(t<1.1){s.old.group.position.lerpVectors(front,s.old.base,ease((t-.5)/.6));s.old.group.position.y+=Math.sin(clamp((t-.5)/.6,0,1)*Math.PI)*.65;}else resetTape(s.old);}
-    const delay=s.old?1.1:.15,u=t-delay,n=s.next;n.group.visible=true;
-    if(u>=0&&u<.5){n.group.position.copy(n.base);n.group.position.y+=ease(u/.5)*.75;}
-    else if(u>=.5&&u<1.3){const raised=n.base.clone();raised.y+=.75;n.group.position.lerpVectors(raised,front,ease((u-.5)/.8));n.group.rotation.y=-.12*(1-ease((u-.5)/.8));}
-    else if(u>=1.3&&u<1.95)n.group.position.lerpVectors(front,slot,ease((u-1.3)/.65));
-    else if(u>=1.95){n.group.visible=false;loadedPaper=n;activeChannel=n.paper;swap=null;s.resolve(true);paintScreen(0);}
+  function travelPath(tape,returning=false){
+    const b=tape.base;
+    // Pull clear of the stack before rising; cross the desk along a continuous curve.
+    const points=[b.clone(),new THREE.Vector3(b.x,b.y,b.z+1.12),
+      new THREE.Vector3(b.x-.1,b.y+.86,b.z+1.32),
+      new THREE.Vector3(.35,2.55,1.95),new THREE.Vector3(-.93,1.85,1.85),front.clone()];
+    return new THREE.CatmullRomCurve3(returning?points.reverse():points,false,'centripetal');
+  }
+  function startSwap(next,resolve){
+    if(loadedPaper===next){resolve(true);return;}
+    const old=loadedPaper;
+    swap={next,old,t:0,resolve,inPath:travelPath(next),outPath:old?travelPath(old,true):null,phase:'LOAD'};
+    if(old){old.group.visible=true;old.group.position.copy(slot);old.group.quaternion.copy(alignedRotation);}
+  }
+  function playPaper(id){
+    const next=researchTapes.find(t=>t.paper.id===id);if(!next)return Promise.resolve(false);
+    if(!tapeMotion){if(loadedPaper)resetTape(loadedPaper);loadedPaper=next;next.group.visible=false;activeChannel=next.paper;paintScreen(0);return Promise.resolve(true);}
+    return new Promise(resolve=>{
+      // Finish the tape already in motion, then honor only the most recent request.
+      if(swap){if(queuedSwap)queuedSwap.resolve(false);queuedSwap={next,resolve};}
+      else startSwap(next,resolve);
+    });
+  }
+  function fly(tape,path,progress,returning){
+    const u=smooth(progress);tape.group.position.copy(path.getPointAt(u));
+    const a=returning?alignedRotation:homeRotation,b=returning?homeRotation:alignedRotation;
+    if(u<.5)tape.group.quaternion.slerpQuaternions(a,flightRotation,smooth(u*2));
+    else tape.group.quaternion.slerpQuaternions(flightRotation,b,smooth((u-.5)*2));
+  }
+  function updateSwap(dt){
+    if(!swap)return;const s=swap;s.t+=dt;const t=s.t,n=s.next;
+    const incomingStart=s.old?1.45:.12;
+    if(s.old){
+      if(t<.64){s.phase='EJECT';s.old.group.position.lerpVectors(slot,front,smooth(t/.64));}
+      else if(t<2.34){s.phase='RETURN';fly(s.old,s.outPath,(t-.64)/1.7,true);}
+      else resetTape(s.old);
+    }
+    const u=t-incomingStart;
+    if(u>=0){
+      n.group.visible=true;
+      if(u<1.95){s.phase='LOAD';fly(n,s.inPath,u/1.95,false);}
+      else if(u<2.15){s.phase='ALIGN';n.group.position.copy(front);n.group.quaternion.copy(alignedRotation);}
+      else if(u<2.87){s.phase='INSERT';n.group.position.lerpVectors(front,slot,smooth((u-2.15)/.72));}
+      else if(u<3.12){s.phase='TRACKING';n.group.visible=false;}
+      else{
+        n.group.visible=false;loadedPaper=n;activeChannel=n.paper;swap=null;s.resolve(true);paintScreen(0);
+        if(queuedSwap){const q=queuedSwap;queuedSwap=null;startSwap(q.next,q.resolve);}
+      }
+    }
   }
 
   contactShadow(2.25,.3,2.8,1.6);
@@ -186,7 +236,7 @@ export function createRoom(container,{onChannel,onHover,onLamp,onSound,onZoom,on
     const gr=ctx.createRadialGradient(w*.45,h*.5,20,w*.5,h*.5,w*.65);gr.addColorStop(0,'#314535');gr.addColorStop(1,'#101e19');ctx.fillStyle=gr;ctx.fillRect(0,0,w,h);
     ctx.fillStyle='#b9d69b';ctx.shadowColor='#b5d88b';ctx.shadowBlur=4;ctx.font='22px monospace';ctx.fillText('▶ PLAY',55,62);ctx.textAlign='right';ctx.fillText('CH '+(activeChannel?.number||'00'),968,62);ctx.textAlign='left';ctx.shadowBlur=0;
     ctx.strokeStyle='#a9c78d55';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(53,91);ctx.lineTo(971,91);ctx.stroke();
-    if(swap){ctx.fillStyle='#b5c89e';ctx.font='38px monospace';ctx.fillText('LOADING TAPE '+swap.next.paper.number,75,320);ctx.font='23px monospace';ctx.fillText('EJECT  /  REWIND  /  PLAY',75,382);for(let i=0;i<45;i++){ctx.fillStyle='rgba(185,210,167,'+(random()*.25)+')';ctx.fillRect(0,random()*h,w,random()*6);}}
+    if(swap){ctx.fillStyle='#b5c89e';ctx.font='38px monospace';ctx.fillText('LOADING TAPE '+swap.next.paper.number,75,320);ctx.font='23px monospace';ctx.fillText(swap.phase+'  /  PLEASE WAIT',75,382);for(let i=0;i<45;i++){ctx.fillStyle='rgba(185,210,167,'+(random()*.25)+')';ctx.fillRect(0,random()*h,w,random()*6);}}
     else if(activeChannel?.id?.startsWith('paper-')){ctx.fillStyle='#91ac83';ctx.font='23px monospace';ctx.fillText('RESEARCH / '+(activeChannel.year||'ARCHIVE'),75,165);ctx.fillStyle='#c9dda7';ctx.font='bold 53px Georgia';const words=activeChannel.label.split(' ');let line='',y=270;for(const word of words){if(ctx.measureText(line+word).width>820){ctx.fillText(line,75,y);y+=66;line='';}line+=word+' ';}ctx.fillText(line,75,y);ctx.font='22px monospace';ctx.fillStyle='#adc297';ctx.fillText('TAPE '+activeChannel.number+' / NOW PLAYING',75,520);ctx.fillText('Publication details in the research index.',75,567);}
     else if(!activeChannel){
       ctx.fillStyle='#c9dda7';ctx.shadowColor='#9ebc79';ctx.shadowBlur=9;ctx.font='bold 112px Georgia';ctx.fillText('YUANYI',75,295);ctx.fillText('DING',75,414);ctx.shadowBlur=0;
@@ -220,5 +270,5 @@ export function createRoom(container,{onChannel,onHover,onLamp,onSound,onZoom,on
     if(!reducedMotion){for(let i=0;i<rainCount;i++){const idx=i*6,dy=dt*rainVel[i];rainPositions[idx+1]-=dy;rainPositions[idx+4]-=dy;if(rainPositions[idx+1]<1.6){rainPositions[idx+1]+=5;rainPositions[idx+4]+=5;}}rainGeometry.attributes.position.needsUpdate=true;}
     screenTick+=dt;if(screenTick>.12){paintScreen(time);screenTick=0;}renderer.render(scene,camera);
   }animate();
-  return{setChannel,setZoom,setLamp,setResearch,playPaper,dispose(){disposed=true;cancelAnimationFrame(frame);window.removeEventListener('resize',resize);renderer.dispose();renderer.domElement.remove();}};
+  return{setChannel,setZoom,setLamp,setResearch,playPaper,setTapeMotion(value){tapeMotion=value;},dispose(){disposed=true;cancelAnimationFrame(frame);window.removeEventListener('resize',resize);renderer.dispose();renderer.domElement.remove();}};
 }
