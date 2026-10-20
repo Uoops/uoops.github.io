@@ -125,7 +125,7 @@ export function createRoom(container,{onChannel,onHover,onLamp,onSound,onZoom,on
   const alignedRotation=new THREE.Quaternion();
   const flightRotation=new THREE.Quaternion().setFromEuler(new THREE.Euler(-.14,.32,-.09));
   const smooth=x=>{x=clamp(x,0,1);return x*x*x*(x*(x*6-15)+10);};
-  let queuedSwap=null,tapeMotion=!reducedMotion;
+  let queuedSwap=null;
   function resetTape(t){t.group.position.copy(t.base);t.group.quaternion.copy(homeRotation);t.group.visible=researchMode;}
   function cancelSwap(){
     if(swap)swap.resolve(false);if(queuedSwap)queuedSwap.resolve(false);
@@ -148,7 +148,6 @@ export function createRoom(container,{onChannel,onHover,onLamp,onSound,onZoom,on
   }
   function playPaper(id){
     const next=researchTapes.find(t=>t.paper.id===id);if(!next)return Promise.resolve(false);
-    if(!tapeMotion){if(loadedPaper)resetTape(loadedPaper);loadedPaper=next;next.group.visible=false;activeChannel=next.paper;paintScreen(0);return Promise.resolve(true);}
     return new Promise(resolve=>{
       // Finish the tape already in motion, then honor only the most recent request.
       if(swap){if(queuedSwap)queuedSwap.resolve(false);queuedSwap={next,resolve};}
@@ -270,5 +269,5 @@ export function createRoom(container,{onChannel,onHover,onLamp,onSound,onZoom,on
     if(!reducedMotion){for(let i=0;i<rainCount;i++){const idx=i*6,dy=dt*rainVel[i];rainPositions[idx+1]-=dy;rainPositions[idx+4]-=dy;if(rainPositions[idx+1]<1.6){rainPositions[idx+1]+=5;rainPositions[idx+4]+=5;}}rainGeometry.attributes.position.needsUpdate=true;}
     screenTick+=dt;if(screenTick>.12){paintScreen(time);screenTick=0;}renderer.render(scene,camera);
   }animate();
-  return{setChannel,setZoom,setLamp,setResearch,playPaper,setTapeMotion(value){tapeMotion=value;},dispose(){disposed=true;cancelAnimationFrame(frame);window.removeEventListener('resize',resize);renderer.dispose();renderer.domElement.remove();}};
+  return{setChannel,setZoom,setLamp,setResearch,playPaper,dispose(){disposed=true;cancelAnimationFrame(frame);window.removeEventListener('resize',resize);renderer.dispose();renderer.domElement.remove();}};
 }
