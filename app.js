@@ -52,7 +52,7 @@ let researchOpen=false,selectionVersion=0,selectedPaper=null;
 const archive=element('aside','research-archive');archive.hidden=true;archive.setAttribute('aria-label','Research archive');
 const archiveTop=element('div','archive-top');const archiveClose=element('button','','Close ×');archiveClose.setAttribute('aria-label','Close research');archiveClose.addEventListener('click',closeResearch);
 archiveTop.append(element('span','eyebrow','RESEARCH / THE TAPE LIBRARY'),archiveClose);
-const archiveTitle=element('h2','','Questions worth following.');const playback=element('p','playback','Select a paper to load its tape.');playback.setAttribute('role','status');
+const archiveTitle=element('h2','','Research notes.');const playback=element('p','playback','Select a paper to load its tape.');playback.setAttribute('role','status');
 const paperDetail=element('div','paper-detail');const paperList=element('div','paper-list');
 archive.append(archiveTop,archiveTitle,playback,paperDetail,element('h3','list-heading','PUBLICATIONS / '+papers.length+' RECORDS'),paperList);document.body.append(archive);
 for(const p of papers){const b=element('button','paper-choice');b.dataset.paper=p.id;b.append(element('span','paper-number',p.number),element('span','paper-name',p.label),element('span','paper-year',p.year||'—'));b.setAttribute('aria-label',p.title);b.addEventListener('click',()=>selectPaper(p.id));paperList.append(b);}
