@@ -271,13 +271,13 @@ export async function createRoom(container,{onChannel,onHover,onLamp,onSound,onZ
   function setLamp(value){lampOn=value;lampLight.intensity=value?35:0;lampSpot.intensity=value?60:0;bounce.intensity=value?8:0;bulb.visible=value;innerShade.material.emissiveIntensity=value?.5:0;}
   const orbit={yaw:0,pitch:0},drag={id:null,x:0,y:0,yaw:0,pitch:0,moved:false};
   let suppressClick=false;
-  const viewLimits={yaw:.24,pitch:.12};
+  const viewLimits={yaw:.60,pitch:.12};
   function resetView(){orbit.yaw=0;orbit.pitch=0;pointer.set(0,0);}
   renderer.domElement.tabIndex=0;
   renderer.domElement.setAttribute('role','region');
   renderer.domElement.setAttribute('aria-label','3D studio. Drag to look around. Arrow keys change the view; R resets it.');
   const targetPos=new THREE.Vector3(),targetLook=new THREE.Vector3(),look=new THREE.Vector3(0,2.4,0);
-  function cameraTarget(){const aspect=container.clientWidth/container.clientHeight;const narrow=aspect<.9;if(zoomed){targetPos.set(-.27,3.04,4.9+(narrow?1.5:0));targetLook.set(-.27,2.92,.2);}else{targetPos.set(.18,3.7,narrow?11.7:(researchMode?10.6:8.9));targetLook.set(0,narrow?2.7:2.48,-.2);}const offset=targetPos.clone().sub(targetLook);const radius=offset.length(),basePitch=Math.asin(offset.y/radius);const yaw=orbit.yaw*(zoomed?.35:1),pitch=clamp(basePitch+orbit.pitch,.03,.42);targetPos.set(targetLook.x+radius*Math.sin(yaw)*Math.cos(pitch),targetLook.y+radius*Math.sin(pitch),targetLook.z+radius*Math.cos(yaw)*Math.cos(pitch));}
+  function cameraTarget(){const aspect=container.clientWidth/container.clientHeight;const narrow=aspect<.9;if(zoomed){targetPos.set(-.27,3.04,4.9+(narrow?1.5:0));targetLook.set(-.27,2.92,.2);}else{targetPos.set(.18,3.7,narrow?11.7:(researchMode?10.6:8.9));targetLook.set(0,narrow?2.7:2.48,-.2);}const offset=targetPos.clone().sub(targetLook);const radius=offset.length(),basePitch=Math.asin(offset.y/radius);const yaw=orbit.yaw*(zoomed?.8:1),pitch=clamp(basePitch+orbit.pitch,.03,.42);targetPos.set(targetLook.x+radius*Math.sin(yaw)*Math.cos(pitch),targetLook.y+radius*Math.sin(pitch),targetLook.z+radius*Math.cos(yaw)*Math.cos(pitch));}
   cameraTarget();camera.position.copy(targetPos);look.copy(targetLook);camera.lookAt(look);paintScreen(0);
   const resize=()=>{renderer.setSize(container.clientWidth,container.clientHeight);camera.aspect=container.clientWidth/container.clientHeight;camera.updateProjectionMatrix();cameraTarget();};window.addEventListener('resize',resize);
   function pick(e){
@@ -297,7 +297,7 @@ export async function createRoom(container,{onChannel,onHover,onLamp,onSound,onZ
     if(drag.id===e.pointerId){
       const dx=e.clientX-drag.x,dy=e.clientY-drag.y;
       if(Math.hypot(dx,dy)>6)drag.moved=true;
-      if(drag.moved){orbit.yaw=clamp(drag.yaw-dx/container.clientWidth*.9,-viewLimits.yaw,viewLimits.yaw);orbit.pitch=clamp(drag.pitch+dy/container.clientHeight*.55,-viewLimits.pitch,viewLimits.pitch);hover=null;onHover(null);renderer.domElement.style.cursor='grabbing';return;}
+      if(drag.moved){orbit.yaw=clamp(drag.yaw-dx/container.clientWidth*1.5,-viewLimits.yaw,viewLimits.yaw);orbit.pitch=clamp(drag.pitch+dy/container.clientHeight*.55,-viewLimits.pitch,viewLimits.pitch);hover=null;onHover(null);renderer.domElement.style.cursor='grabbing';return;}
     }
     pick(e);
   };
