@@ -9,7 +9,9 @@ function texture(w,h,draw){const c=document.createElement('canvas');c.width=w;c.
 function roundRect(ctx,x,y,w,h,r){ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fill();}
 function roundedGeometry(w,h,d,r=.08){const s=new THREE.Shape();const x=-w/2,y=-h/2;s.moveTo(x+r,y);s.lineTo(x+w-r,y);s.quadraticCurveTo(x+w,y,x+w,y+r);s.lineTo(x+w,y+h-r);s.quadraticCurveTo(x+w,y+h,x+w-r,y+h);s.lineTo(x+r,y+h);s.quadraticCurveTo(x,y+h,x,y+h-r);s.lineTo(x,y+r);s.quadraticCurveTo(x,y,x+r,y);const g=new THREE.ExtrudeGeometry(s,{depth:d,bevelEnabled:true,bevelThickness:r*.3,bevelSize:r*.3,bevelSegments:2,steps:1,curveSegments:6});g.translate(0,0,-d/2);return g;}
 
-export function createRoom(container,{onChannel,onHover,onLamp,onSound,onZoom,onPaper,reducedMotion=false}){
+export async function createRoom(container,{onChannel,onHover,onLamp,onSound,onZoom,onPaper,reducedMotion=false}){
+  const skyline=await new THREE.TextureLoader().loadAsync(new URL('./manhattan-snow.jpg',import.meta.url).href).catch(error=>{console.warn('Snowy skyline unavailable; using procedural skyline.',error);return null;});
+  if(skyline){skyline.colorSpace=THREE.SRGBColorSpace;skyline.anisotropy=4;}
   const renderer=new THREE.WebGLRenderer({antialias:true,alpha:false,powerPreference:'high-performance'});
   renderer.setPixelRatio(Math.min(devicePixelRatio,1.6));renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.25;container.appendChild(renderer.domElement);
   const scene=new THREE.Scene();scene.background=new THREE.Color('#242923');scene.fog=new THREE.FogExp2('#30372f',.018);
@@ -43,7 +45,7 @@ export function createRoom(container,{onChannel,onHover,onLamp,onSound,onZoom,on
     for(let i=0;i<65;i++){const x=random()*w,y=h*.65+random()*h*.32,r=10+random()*24;const glow=ctx.createRadialGradient(x,y,0,x,y,r);glow.addColorStop(0,random()>.3?'#ffdf9e99':'#b1e0d899');glow.addColorStop(1,'#0000');ctx.fillStyle=glow;ctx.fillRect(x-r,y-r,r*2,r*2);}
     ctx.fillStyle='#ded9a6';ctx.font='24px monospace';ctx.fillText('OPEN LATE',1530,745);ctx.fillStyle='#d4a174';ctx.fillRect(1320,900,130,2);
   });
-  plane(11,5.8,new THREE.MeshBasicMaterial({map:cityTexture,color:'#9dada1'}),0,3.7,-2.93);
+  plane(11,5.8,new THREE.MeshBasicMaterial({map:skyline||cityTexture,color:skyline?'#d7e2f1':'#9dada1',toneMapped:false}),0,3.7,-2.93);
   const windowWood=mat('#62533a',.52);
   box(11.4,.15,.45,windowWood,0,6.65,-2.7);
   box(11.5,.22,.62,wood,0,1.52,-2.64);
@@ -55,11 +57,13 @@ export function createRoom(container,{onChannel,onHover,onLamp,onSound,onZoom,on
   const curtainMat=mat('#7a7862',.98);
   for(let i=0;i<17;i++){const o=cyl(.13,.15,6.4,curtainMat,5.22+i*.15,3.95,-2.22+Math.sin(i*2)*.12,root,12);o.scale.z=.65;}
   rod([4.95,7.25,-2.2],[8,7.25,-2.2],.045,brass);
-  // A single line buffer makes the rain inexpensive to render.
-  const rainCount=340,rainPositions=new Float32Array(rainCount*6),rainVel=[];
-  for(let i=0;i<rainCount;i++){const x=random()*10.6-5.3,y=random()*5+1.6,z=-2.52+random()*.04;rainPositions.set([x,y,z,x+.015,y+.12+random()*.14,z],i*6);rainVel.push(.5+random()*.9);}
-  const rainGeometry=new THREE.BufferGeometry();rainGeometry.setAttribute('position',new THREE.BufferAttribute(rainPositions,3));
-  const rain=new THREE.LineSegments(rainGeometry,new THREE.LineBasicMaterial({color:'#c2d1bc',transparent:true,opacity:.17}));root.add(rain);
+  // Snow falls outside the glass, with slow lateral drift and soft round flakes.
+  const snowCount=420,snowPositions=new Float32Array(snowCount*3),snowVel=[],snowPhase=[];
+  for(let i=0;i<snowCount;i++){snowPositions.set([random()*10.6-5.3,random()*4.9+1.6,-2.6+random()*.13],i*3);snowVel.push(.11+random()*.2);snowPhase.push(random()*Math.PI*2);}
+  const snowSprite=texture(32,32,(ctx,w,h)=>{const gradient=ctx.createRadialGradient(16,16,1,16,16,15);gradient.addColorStop(0,'#ffffff');gradient.addColorStop(.35,'#ffffffc0');gradient.addColorStop(1,'#ffffff00');ctx.fillStyle=gradient;ctx.fillRect(0,0,w,h);});
+  const snowGeometry=new THREE.BufferGeometry();snowGeometry.setAttribute('position',new THREE.BufferAttribute(snowPositions,3));
+  const snow=new THREE.Points(snowGeometry,new THREE.PointsMaterial({color:'#e4eeff',map:snowSprite,size:.045,transparent:true,opacity:.7,depthWrite:false,alphaTest:.015}));root.add(snow);
+
 
   // Desk, its bevelled edge, and a soft leather writing mat.
   rounded(11.4,.2,4.55,wood,0,1.08,.25,root,.06);
@@ -222,7 +226,7 @@ export function createRoom(container,{onChannel,onHover,onLamp,onSound,onZoom,on
   const clockFace=texture(256,256,(ctx,w,h)=>{ctx.fillStyle='#d1c7a4';ctx.fillRect(0,0,w,h);ctx.strokeStyle='#535640';ctx.lineWidth=4;for(let i=0;i<12;i++){const a=i*Math.PI/6;ctx.beginPath();ctx.moveTo(128+Math.sin(a)*98,128-Math.cos(a)*98);ctx.lineTo(128+Math.sin(a)*110,128-Math.cos(a)*110);ctx.stroke();}ctx.lineWidth=7;ctx.beginPath();ctx.moveTo(128,128);ctx.lineTo(90,94);ctx.moveTo(128,128);ctx.lineTo(163,58);ctx.stroke();});
   const face=addMesh(new THREE.CircleGeometry(.265,48),new THREE.MeshStandardMaterial({map:clockFace}),0,0,.077,clockGroup);for(const x of[-.19,.19])rod([x,-.16,0],[x*1.25,-.36,.06],.025,brass,clockGroup);
   // A small radio gives the sound control a physical home.
-  const radio=new THREE.Group();radio.position.set(-4.45,1.53,-1.05);radio.rotation.y=.22;root.add(radio);rounded(.9,.62,.42,mat('#615942'),0,0,0,radio,.06);const grille=box(.46,.43,.025,charcoal,-.13,0,.23,radio);hotspot(grille,'Toggle the rain ambience',()=>onSound());for(let i=0;i<12;i++)box(.42,.009,.03,mat('#817d60'),-.13,-.19+i*.034,.25,radio);for(let i=0;i<2;i++){const k=cyl(.065,.065,.04,black,.3,.13-i*.25,.25,radio,20);k.rotation.x=Math.PI/2;hotspot(k,'Toggle the rain ambience',()=>onSound());}rod([-.25,.31,-.1],[-.43,1.3,-.1],.012,brass,radio);
+  const radio=new THREE.Group();radio.position.set(-4.45,1.53,-1.05);radio.rotation.y=.22;root.add(radio);rounded(.9,.62,.42,mat('#615942'),0,0,0,radio,.06);const grille=box(.46,.43,.025,charcoal,-.13,0,.23,radio);hotspot(grille,'Toggle the winter ambience',()=>onSound());for(let i=0;i<12;i++)box(.42,.009,.03,mat('#817d60'),-.13,-.19+i*.034,.25,radio);for(let i=0;i<2;i++){const k=cyl(.065,.065,.04,black,.3,.13-i*.25,.25,radio,20);k.rotation.x=Math.PI/2;hotspot(k,'Toggle the winter ambience',()=>onSound());}rod([-.25,.31,-.1],[-.43,1.3,-.1],.012,brass,radio);
 
   const ambient=new THREE.HemisphereLight('#c0d3cf','#5b4230',1.6);scene.add(ambient);
   const moon=new THREE.DirectionalLight('#a5c9d0',1.8);moon.position.set(-3,6,-3);scene.add(moon);
@@ -266,7 +270,7 @@ export function createRoom(container,{onChannel,onHover,onLamp,onSound,onZoom,on
   function animate(){if(disposed)return;frame=requestAnimationFrame(animate);const dt=Math.min(clock.getDelta(),.05),time=clock.elapsedTime;if(document.hidden||document.body.classList.contains('reading'))return;
     updateSwap(dt);cameraTarget();if(!reducedMotion&&!zoomed){targetPos.x+=pointer.x*.13;targetPos.y+=pointer.y*.055;}camera.position.lerp(targetPos,reducedMotion?1:1-Math.exp(-dt*3.8));look.lerp(targetLook,reducedMotion?1:1-Math.exp(-dt*4.5));camera.lookAt(look);
     for(const tape of tapes){const chosen=tape.id===activeChannel?.id;const lift=chosen?.24:0;tape.group.position.y=THREE.MathUtils.lerp(tape.group.position.y,tape.base.y+lift,reducedMotion?1:dt*5);tape.group.position.x=THREE.MathUtils.lerp(tape.group.position.x,tape.base.x+(chosen?.12:0),reducedMotion?1:dt*5);}
-    if(!reducedMotion){for(let i=0;i<rainCount;i++){const idx=i*6,dy=dt*rainVel[i];rainPositions[idx+1]-=dy;rainPositions[idx+4]-=dy;if(rainPositions[idx+1]<1.6){rainPositions[idx+1]+=5;rainPositions[idx+4]+=5;}}rainGeometry.attributes.position.needsUpdate=true;}
+    for(let i=0;i<snowCount;i++){const j=i*3;snowPositions[j+1]-=dt*snowVel[i];snowPositions[j]+=dt*(.035+Math.sin(time*.45+snowPhase[i])*.045);if(snowPositions[j+1]<1.6)snowPositions[j+1]=6.5;if(snowPositions[j]>5.3)snowPositions[j]=-5.3;if(snowPositions[j]<-5.3)snowPositions[j]=5.3;}snowGeometry.attributes.position.needsUpdate=true;
     screenTick+=dt;if(screenTick>.12){paintScreen(time);screenTick=0;}renderer.render(scene,camera);
   }animate();
   return{setChannel,setZoom,setLamp,setResearch,playPaper,dispose(){disposed=true;cancelAnimationFrame(frame);window.removeEventListener('resize',resize);renderer.dispose();renderer.domElement.remove();}};
